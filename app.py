@@ -12,7 +12,7 @@ st.set_page_config(
     layout="wide"
 )
 
-st.title("AI Expense & Journal Entry Automation System")
+st.title("AI-Based Financial Transaction Analysis & Automated Journal Entry System")
 
 transaction = st.text_input("Enter Accounting Transaction")
 
