@@ -1,57 +1,153 @@
 import streamlit as st
 import pandas as pd
 import os
+import re
 
 st.title("AI Expense & Journal Entry Automation System")
 
 transaction = st.text_input("Enter Accounting Transaction")
 
-# AI Logic
+
+# Extract Amount Automatically
+def extract_amount(text):
+
+    numbers = re.findall(r'\d+', text)
+
+    if numbers:
+        return numbers[0]
+    else:
+        return "Unknown"
+
+
+# AI Accounting Logic
 def generate_entry(text):
 
     text = text.lower()
 
-    if "salary" in text:
+    amount = extract_amount(text)
+
+    # INCOME
+    if any(word in text for word in ["income", "received", "revenue", "earned", "service"]):
+
+        return {
+            "Category": "Income",
+            "Debit": "Cash/Bank Account",
+            "Credit": "Income Account",
+            "Amount": amount
+        }
+
+    # SALARY
+    elif "salary" in text:
+
         return {
             "Category": "Salary Expense",
-            "Debit": "Salary Account",
-            "Credit": "Bank Account",
-            "Amount": "50000"
+            "Debit": "Salary Expense Account",
+            "Credit": "Cash/Bank Account",
+            "Amount": amount
         }
 
+    # RENT
     elif "rent" in text:
+
         return {
             "Category": "Rent Expense",
-            "Debit": "Rent Account",
-            "Credit": "Bank Account",
-            "Amount": "20000"
+            "Debit": "Rent Expense Account",
+            "Credit": "Cash/Bank Account",
+            "Amount": amount
         }
 
-    elif "electricity" in text:
+    # ELECTRICITY / UTILITIES
+    elif any(word in text for word in ["electricity", "utility", "water", "internet"]):
+
         return {
             "Category": "Utility Expense",
-            "Debit": "Electricity Expense Account",
-            "Credit": "Bank Account",
-            "Amount": "8000"
+            "Debit": "Utility Expense Account",
+            "Credit": "Cash/Bank Account",
+            "Amount": amount
         }
 
+    # FURNITURE
     elif "furniture" in text:
+
         return {
-            "Category": "Asset Purchase",
+            "Category": "Furniture Purchase",
             "Debit": "Furniture Account",
-            "Credit": "Cash Account",
-            "Amount": "25000"
+            "Credit": "Cash/Bank Account",
+            "Amount": amount
         }
 
+    # MACHINERY
+    elif "machinery" in text:
+
+        return {
+            "Category": "Machinery Purchase",
+            "Debit": "Machinery Account",
+            "Credit": "Cash/Creditor Account",
+            "Amount": amount
+        }
+
+    # INVENTORY / STOCK
+    elif any(word in text for word in ["inventory", "stock", "goods"]):
+
+        return {
+            "Category": "Inventory Purchase",
+            "Debit": "Inventory Account",
+            "Credit": "Cash/Creditor Account",
+            "Amount": amount
+        }
+
+    # OFFICE EXPENSE
+    elif any(word in text for word in ["office", "stationery", "supplies"]):
+
+        return {
+            "Category": "Office Expense",
+            "Debit": "Office Expense Account",
+            "Credit": "Cash/Bank Account",
+            "Amount": amount
+        }
+
+    # SALES
+    elif any(word in text for word in ["sold", "sales"]):
+
+        return {
+            "Category": "Sales Revenue",
+            "Debit": "Cash/Bank Account",
+            "Credit": "Sales Account",
+            "Amount": amount
+        }
+
+    # LOAN
+    elif "loan" in text:
+
+        return {
+            "Category": "Loan Transaction",
+            "Debit": "Cash/Bank Account",
+            "Credit": "Loan Account",
+            "Amount": amount
+        }
+
+    # COMMISSION
+    elif "commission" in text:
+
+        return {
+            "Category": "Commission Income",
+            "Debit": "Cash/Bank Account",
+            "Credit": "Commission Income Account",
+            "Amount": amount
+        }
+
+    # DEFAULT
     else:
+
         return {
             "Category": "General Expense",
             "Debit": "Expense Account",
             "Credit": "Cash/Bank Account",
-            "Amount": "Unknown"
+            "Amount": amount
         }
 
-# Button
+
+# BUTTON
 if st.button("Generate Entry"):
 
     result = generate_entry(transaction)
