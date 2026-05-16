@@ -27,9 +27,9 @@ def extract_amount(text):
     numbers = re.findall(r'\d+(?:\.\d+)?', text)
 
     if numbers:
-        return numbers[0]
+        return int(float(numbers[0]))
 
-    return "Unknown"
+    return 0
 
 
 # ------------------------------------------------
@@ -260,7 +260,7 @@ def generate_entry(text):
             "Credit": payment_account,
             "Amount": amount
         }
-
+    
     # ------------------------------------------------
     # COMPOUND SALES
     # ------------------------------------------------
@@ -309,7 +309,11 @@ def generate_entry(text):
     # COMPOUND TRANSACTIONS
     # ------------------------------------------------
 
-    elif "partly cash" in text or "balance on credit" in text:
+    elif (
+        ("purchase" in text or "purchases" in text)
+        and
+        ("partly cash" in text or "balance on credit" in text)
+    ):
 
         if any(word in text for word in [
             "machinery", "machine", "equipment", "plant"
@@ -344,6 +348,19 @@ def generate_entry(text):
             "Category": "Compound Purchase Transaction",
             "Debit": debit_account,
             "Credit": "Cash/Bank Account + Creditor Account",
+            "Amount": amount
+        }
+    
+    # ------------------------------------------------
+    # PURCHASES
+    # ------------------------------------------------
+
+    elif "purchase" in text or "purchases" in text:
+
+        return {
+            "Category": "Purchase Transaction",
+            "Debit": "Purchase Account",
+            "Credit": payment_account,
             "Amount": amount
         }
     
@@ -967,5 +984,5 @@ if st.button("Generate Entry"):
     st.markdown("---")
 
     st.caption(
-        "AI Accounting System | Automated Journal Entry Generator| Developed by SUHAS"
+        "AI Accounting System | Automated Journal Entry Generator | Developed by SUHAS KINI"
     )
