@@ -889,6 +889,7 @@ if st.button("Generate Entry"):
 
     st.success("Transaction Saved Successfully")
 
+
     # ------------------------------------------------
     # DASHBOARD
     # ------------------------------------------------
@@ -897,9 +898,50 @@ if st.button("Generate Entry"):
 
     df = pd.read_excel(file)
 
+    def color_amount(row):
+
+        inflow_categories = [
+            "Sales Revenue",
+            "Compound Sales Transaction",
+            "Business Income",
+            "Consulting Income",
+            "Commission Income",
+            "Capital Introduced",
+            "Loan Transaction"
+        ]
+
+        if row["Category"] in inflow_categories:
+
+            color = "lightgreen"
+
+        else:
+
+            color = "red"
+
+        return [
+            "",
+            "",
+            "",
+            "",
+            "",
+            f"color: {color}; font-weight: bold"
+        ]
+
+
+    styled_df = df.style.apply(
+
+        color_amount,
+
+        axis=1
+
+    )
+
     st.dataframe(
-        df,
+
+        styled_df,
+
         use_container_width=True
+
     )
 
     # ------------------------------------------------
