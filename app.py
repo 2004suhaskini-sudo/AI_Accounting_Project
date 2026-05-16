@@ -2,10 +2,11 @@ import streamlit as st
 import pandas as pd
 import os
 import re
+from datetime import datetime
 
-# -----------------------------------
+# ------------------------------------------------
 # PAGE CONFIG
-# -----------------------------------
+# ------------------------------------------------
 
 st.set_page_config(
     page_title="AI Accounting System",
@@ -17,13 +18,13 @@ st.title("AI-Based Financial Transaction Analysis & Automated Journal Entry Syst
 transaction = st.text_input("Enter Accounting Transaction")
 
 
-# -----------------------------------
-# AMOUNT EXTRACTION
-# -----------------------------------
+# ------------------------------------------------
+# EXTRACT AMOUNT
+# ------------------------------------------------
 
 def extract_amount(text):
 
-    numbers = re.findall(r'\d+', text)
+    numbers = re.findall(r'\d+(?:\.\d+)?', text)
 
     if numbers:
         return numbers[0]
@@ -31,88 +32,9 @@ def extract_amount(text):
     return "Unknown"
 
 
-# -----------------------------------
-# KEYWORD DATABASE
-# -----------------------------------
-
-income_keywords = [
-    "income", "revenue", "earned", "received",
-    "consulting", "commission", "service",
-    "fees"
-]
-
-sales_keywords = [
-    "sale", "sales", "sold"
-]
-
-salary_keywords = [
-    "salary", "wages", "payroll", "employee payment"
-]
-
-rent_keywords = [
-    "rent", "lease", "office rent", "building rent"
-]
-
-utility_keywords = [
-    "electricity", "internet", "water",
-    "wifi", "telephone", "utility"
-]
-
-furniture_keywords = [
-    "furniture", "table", "chair",
-    "desk", "sofa", "cabinet",
-    "cupboard"
-]
-
-machinery_keywords = [
-    "machinery", "machine", "equipment",
-    "plant", "factory equipment"
-]
-
-inventory_keywords = [
-    "inventory", "stock", "goods",
-    "raw material", "product inventory"
-]
-
-office_keywords = [
-    "office supplies", "stationery",
-    "printer ink", "paper", "supplies"
-]
-
-vehicle_keywords = [
-    "vehicle", "car", "truck",
-    "van", "transport vehicle"
-]
-
-loan_keywords = [
-    "loan", "bank loan", "borrowing"
-]
-
-capital_keywords = [
-    "capital", "owner investment",
-    "capital introduced"
-]
-
-drawings_keywords = [
-    "drawings", "owner withdrawal"
-]
-
-depreciation_keywords = [
-    "depreciation", "asset depreciation"
-]
-
-interest_keywords = [
-    "interest", "finance cost"
-]
-
-gst_keywords = [
-    "gst", "tax", "vat"
-]
-
-
-# -----------------------------------
+# ------------------------------------------------
 # AI ACCOUNTING ENGINE
-# -----------------------------------
+# ------------------------------------------------
 
 def generate_entry(text):
 
@@ -120,47 +42,260 @@ def generate_entry(text):
 
     amount = extract_amount(text)
 
-    # -----------------------------------
+    # ------------------------------------------------
     # PAYMENT MODE
-    # -----------------------------------
+    # ------------------------------------------------
 
     if "credit" in text:
-
         payment_account = "Creditor Account"
 
     elif "bank" in text:
-
         payment_account = "Bank Account"
 
     elif "cash" in text:
-
-        payment_account = "Cash Account"
-
-    else:
-
         payment_account = "Cash/Bank Account"
 
-    # -----------------------------------
-    # SALES REVENUE
-    # IMPORTANT: ABOVE INVENTORY
-    # -----------------------------------
+    else:
+        payment_account = "Cash/Bank Account"
 
-    if any(word in text for word in sales_keywords):
+    # ------------------------------------------------
+    # CONTRA ENTRIES
+    # ------------------------------------------------
 
-        if "credit" in text:
+    if "cash deposited" in text or "deposited into bank" in text:
 
-            debit_account = "Debtor Account"
+        return {
+            "Category": "Contra Entry",
+            "Debit": "Bank Account",
+            "Credit": "Cash Account",
+            "Amount": amount
+        }
 
-        elif "bank" in text:
+    elif "cash withdrawn" in text or "withdrawn from bank" in text:
 
-            debit_account = "Bank Account"
+        return {
+            "Category": "Contra Entry",
+            "Debit": "Cash Account",
+            "Credit": "Bank Account",
+            "Amount": amount
+        }
 
-        elif "cash" in text:
+    # ------------------------------------------------
+    # BAD DEBTS
+    # ------------------------------------------------
 
-            debit_account = "Cash Account"
+    elif "bad debt" in text or "written off" in text:
+
+        return {
+            "Category": "Bad Debts",
+            "Debit": "Bad Debts Account",
+            "Credit": "Debtor Account",
+            "Amount": amount
+        }
+
+    # ------------------------------------------------
+    # PROVISION FOR DOUBTFUL DEBTS
+    # ------------------------------------------------
+
+    elif "provision" in text or "doubtful debt" in text:
+
+        return {
+            "Category": "Provision for Doubtful Debts",
+            "Debit": "Profit & Loss Account",
+            "Credit": "Provision for Doubtful Debts Account",
+            "Amount": amount
+        }
+
+    # ------------------------------------------------
+    # DISCOUNT ALLOWED
+    # ------------------------------------------------
+
+    elif "discount allowed" in text:
+
+        return {
+            "Category": "Discount Allowed",
+            "Debit": "Discount Allowed Account",
+            "Credit": "Debtor Account",
+            "Amount": amount
+        }
+
+    # ------------------------------------------------
+    # DISCOUNT RECEIVED
+    # ------------------------------------------------
+
+    elif "discount received" in text:
+
+        return {
+            "Category": "Discount Received",
+            "Debit": "Creditor Account",
+            "Credit": "Discount Received Account",
+            "Amount": amount
+        }
+
+    # ------------------------------------------------
+    # PURCHASE RETURNS
+    # ------------------------------------------------
+
+    elif "purchase return" in text or "returned goods to supplier" in text:
+
+        return {
+            "Category": "Purchase Return",
+            "Debit": "Creditor Account",
+            "Credit": "Purchase Return Account",
+            "Amount": amount
+        }
+
+    # ------------------------------------------------
+    # SALES RETURNS
+    # ------------------------------------------------
+
+    elif "sales return" in text or "goods returned by customer" in text:
+
+        return {
+            "Category": "Sales Return",
+            "Debit": "Sales Return Account",
+            "Credit": "Debtor/Cash Account",
+            "Amount": amount
+        }
+
+    # ------------------------------------------------
+    # OUTSTANDING EXPENSES
+    # ------------------------------------------------
+
+    elif "outstanding expense" in text or "outstanding salary" in text:
+
+        return {
+            "Category": "Outstanding Expense",
+            "Debit": "Expense Account",
+            "Credit": "Outstanding Expense Account",
+            "Amount": amount
+        }
+
+    # ------------------------------------------------
+    # PREPAID EXPENSES
+    # ------------------------------------------------
+
+    elif "prepaid expense" in text or "prepaid rent" in text:
+
+        return {
+            "Category": "Prepaid Expense",
+            "Debit": "Prepaid Expense Account",
+            "Credit": payment_account,
+            "Amount": amount
+        }
+
+    # ------------------------------------------------
+    # OUTSTANDING INCOME
+    # ------------------------------------------------
+
+    elif "outstanding income" in text or "accrued income" in text:
+
+        return {
+            "Category": "Outstanding Income",
+            "Debit": "Outstanding Income Account",
+            "Credit": "Income Account",
+            "Amount": amount
+        }
+
+    # ------------------------------------------------
+    # INCOME RECEIVED IN ADVANCE
+    # ------------------------------------------------
+
+    elif "income received in advance" in text or "unearned income" in text:
+
+        return {
+            "Category": "Income Received in Advance",
+            "Debit": payment_account,
+            "Credit": "Income Received in Advance Account",
+            "Amount": amount
+        }
+
+    # ------------------------------------------------
+    # DEPRECIATION
+    # ------------------------------------------------
+
+    elif "depreciation" in text:
+
+        if "machinery" in text:
+            asset = "Machinery"
+
+        elif "furniture" in text:
+            asset = "Furniture"
+
+        elif "vehicle" in text:
+            asset = "Vehicle"
 
         else:
+            asset = "Asset"
 
+        return {
+            "Category": f"Depreciation on {asset}",
+            "Debit": "Depreciation Expense Account",
+            "Credit": f"Accumulated Depreciation on {asset} Account",
+            "Amount": amount
+        }
+
+    # ------------------------------------------------
+    # CAPITAL EXPENDITURE
+    # ------------------------------------------------
+
+    elif "capital expenditure" in text:
+
+        return {
+            "Category": "Capital Expenditure",
+            "Debit": "Asset Account",
+            "Credit": payment_account,
+            "Amount": amount
+        }
+
+    # ------------------------------------------------
+    # REVENUE EXPENDITURE
+    # ------------------------------------------------
+
+    elif "revenue expenditure" in text:
+
+        return {
+            "Category": "Revenue Expenditure",
+            "Debit": "Expense Account",
+            "Credit": payment_account,
+            "Amount": amount
+        }
+
+    # ------------------------------------------------
+    # COMPOUND SALES
+    # ------------------------------------------------
+
+    elif (
+        ("sale" in text or "sales" in text or "sold" in text)
+        and
+        ("partly" in text or "partly cash" in text)
+    ):
+
+        debit_account = "Cash/Bank Account + Debtor Account"
+
+        return {
+            "Category": "Compound Sales Transaction",
+            "Debit": debit_account,
+            "Credit": "Sales Account",
+            "Amount": amount
+        }
+
+    # ------------------------------------------------
+    # NORMAL SALES
+    # ------------------------------------------------
+
+    elif "sale" in text or "sales" in text or "sold" in text:
+
+        if "credit" in text:
+            debit_account = "Debtor Account"
+
+        elif "cash" in text:
+            debit_account = "Cash Account"
+
+        elif "bank" in text:
+            debit_account = "Bank Account"
+
+        else:
             debit_account = "Cash/Bank Account"
 
         return {
@@ -170,36 +305,282 @@ def generate_entry(text):
             "Amount": amount
         }
 
-    # -----------------------------------
-    # CONSULTING / SERVICE INCOME
-    # -----------------------------------
+    # ------------------------------------------------
+    # COMPOUND TRANSACTIONS
+    # ------------------------------------------------
 
-    elif any(word in text for word in income_keywords):
+    elif "partly cash" in text or "balance on credit" in text:
 
-        if "consulting" in text:
+        if any(word in text for word in [
+            "machinery", "machine", "equipment", "plant"
+        ]):
 
-            income_account = "Consulting Income Account"
+            debit_account = "Machinery Account"
 
-        elif "commission" in text:
+        elif any(word in text for word in [
+            "furniture", "table", "chair",
+            "desk", "cabinet", "cupboard", "sofa"
+        ]):
 
-            income_account = "Commission Income Account"
+            debit_account = "Furniture Account"
+
+        elif any(word in text for word in [
+            "vehicle", "car", "truck", "van"
+        ]):
+
+            debit_account = "Vehicle Account"
+
+        elif any(word in text for word in [
+            "inventory", "stock", "goods", "raw material"
+        ]):
+
+            debit_account = "Inventory Account"
 
         else:
 
-            income_account = "Income Account"
+            debit_account = "Relevant Asset/Purchase Account"
+
+        return {
+            "Category": "Compound Purchase Transaction",
+            "Debit": debit_account,
+            "Credit": "Cash/Bank Account + Creditor Account",
+            "Amount": amount
+        }
+    
+    # ------------------------------------------------
+    # EQUITY SHARES ISSUED AT PAR
+    # ------------------------------------------------
+
+    elif "equity share" in text and "issued" in text and "par" in text:
+
+        return {
+            "Category": "Issue of Equity Shares at Par",
+            "Debit": "Bank Account",
+            "Credit": "Equity Share Capital Account",
+            "Amount": amount
+        }
+
+    # ------------------------------------------------
+    # EQUITY SHARES ISSUED AT PREMIUM
+    # ------------------------------------------------
+
+    elif "equity share" in text and "issued" in text and "premium" in text:
+
+        return {
+            "Category": "Issue of Equity Shares at Premium",
+            "Debit": "Bank Account",
+            "Credit": "Equity Share Capital Account + Securities Premium Account",
+            "Amount": amount
+        }
+
+    # ------------------------------------------------
+    # EQUITY SHARES ISSUED AT DISCOUNT
+    # ------------------------------------------------
+
+    elif "equity share" in text and "issued" in text and "discount" in text:
+
+        return {
+            "Category": "Issue of Equity Shares at Discount",
+            "Debit": "Bank Account + Discount on Issue of Shares Account",
+            "Credit": "Equity Share Capital Account",
+            "Amount": amount
+        }
+
+    # ------------------------------------------------
+    # PREFERENCE SHARES ISSUED AT PAR
+    # ------------------------------------------------
+
+    elif "preference share" in text and "issued" in text and "par" in text:
+
+        return {
+            "Category": "Issue of Preference Shares at Par",
+            "Debit": "Bank Account",
+            "Credit": "Preference Share Capital Account",
+            "Amount": amount
+        }
+
+    # ------------------------------------------------
+    # PREFERENCE SHARES ISSUED AT PREMIUM
+    # ------------------------------------------------
+
+    elif "preference share" in text and "issued" in text and "premium" in text:
+
+        return {
+            "Category": "Issue of Preference Shares at Premium",
+            "Debit": "Bank Account",
+            "Credit": "Preference Share Capital Account + Securities Premium Account",
+            "Amount": amount
+        }
+
+    # ------------------------------------------------
+    # PREFERENCE SHARES ISSUED AT DISCOUNT
+    # ------------------------------------------------
+
+    elif "preference share" in text and "issued" in text and "discount" in text:
+
+        return {
+            "Category": "Issue of Preference Shares at Discount",
+            "Debit": "Bank Account + Discount on Issue of Shares Account",
+            "Credit": "Preference Share Capital Account",
+            "Amount": amount
+        }
+
+    # ------------------------------------------------
+    # REDEMPTION OF PREFERENCE SHARES AT PAR
+    # ------------------------------------------------
+
+    elif "preference share" in text and "redeemed" in text and "par" in text:
+
+        return {
+            "Category": "Redemption of Preference Shares at Par",
+            "Debit": "Preference Share Capital Account",
+            "Credit": "Bank Account",
+            "Amount": amount
+        }
+
+    # ------------------------------------------------
+    # REDEMPTION OF PREFERENCE SHARES AT PREMIUM
+    # ------------------------------------------------
+
+    elif "preference share" in text and "redeemed" in text and "premium" in text:
+
+        return {
+            "Category": "Redemption of Preference Shares at Premium",
+            "Debit": "Preference Share Capital Account + Premium on Redemption Account",
+            "Credit": "Bank Account",
+            "Amount": amount
+        }
+
+    # ------------------------------------------------
+    # REDEMPTION OF PREFERENCE SHARES AT DISCOUNT
+    # ------------------------------------------------
+
+    elif "preference share" in text and "redeemed" in text and "discount" in text:
+
+        return {
+            "Category": "Redemption of Preference Shares at Discount",
+            "Debit": "Preference Share Capital Account",
+            "Credit": "Bank Account + Capital Reserve Account",
+            "Amount": amount
+        }
+
+    # ------------------------------------------------
+    # DEBENTURES ISSUED AT PAR
+    # ------------------------------------------------
+
+    elif "debenture" in text and "issued" in text and "par" in text:
+
+        return {
+            "Category": "Issue of Debentures at Par",
+            "Debit": "Bank Account",
+            "Credit": "Debentures Account",
+            "Amount": amount
+        }
+
+    # ------------------------------------------------
+    # DEBENTURES ISSUED AT PREMIUM
+    # ------------------------------------------------
+
+    elif "debenture" in text and "issued" in text and "premium" in text:
+
+        return {
+            "Category": "Issue of Debentures at Premium",
+            "Debit": "Bank Account",
+            "Credit": "Debentures Account + Securities Premium Account",
+            "Amount": amount
+        }
+
+    # ------------------------------------------------
+    # DEBENTURES ISSUED AT DISCOUNT
+    # ------------------------------------------------
+
+    elif "debenture" in text and "issued" in text and "discount" in text:
+
+        return {
+            "Category": "Issue of Debentures at Discount",
+            "Debit": "Bank Account + Discount on Issue of Debentures Account",
+            "Credit": "Debentures Account",
+            "Amount": amount
+        }
+
+    # ------------------------------------------------
+    # REDEMPTION OF DEBENTURES AT PAR
+    # ------------------------------------------------
+
+    elif "debenture" in text and "redeemed" in text and "par" in text:
+
+        return {
+            "Category": "Redemption of Debentures at Par",
+            "Debit": "Debentures Account",
+            "Credit": "Bank Account",
+            "Amount": amount
+        }
+
+    # ------------------------------------------------
+    # REDEMPTION OF DEBENTURES AT PREMIUM
+    # ------------------------------------------------
+
+    elif "debenture" in text and "redeemed" in text and "premium" in text:
+
+        return {
+            "Category": "Redemption of Debentures at Premium",
+            "Debit": "Debentures Account + Premium on Redemption of Debentures Account",
+            "Credit": "Bank Account",
+            "Amount": amount
+        }
+
+    # ------------------------------------------------
+    # REDEMPTION OF DEBENTURES AT DISCOUNT
+    # ------------------------------------------------
+
+    elif "debenture" in text and "redeemed" in text and "discount" in text:
+
+        return {
+            "Category": "Redemption of Debentures at Discount",
+            "Debit": "Debentures Account",
+            "Credit": "Bank Account + Capital Reserve Account",
+            "Amount": amount
+        }
+
+    # ------------------------------------------------
+    # CONSULTING / COMMISSION / SERVICE INCOME
+    # ------------------------------------------------
+
+    elif "consulting" in text:
+
+        return {
+            "Category": "Consulting Income",
+            "Debit": payment_account,
+            "Credit": "Consulting Income Account",
+            "Amount": amount
+        }
+
+    elif "commission" in text:
+
+        return {
+            "Category": "Commission Income",
+            "Debit": payment_account,
+            "Credit": "Commission Income Account",
+            "Amount": amount
+        }
+
+    elif "income" in text or "revenue" in text or "received" in text:
 
         return {
             "Category": "Business Income",
             "Debit": payment_account,
-            "Credit": income_account,
+            "Credit": "Income Account",
             "Amount": amount
         }
 
-    # -----------------------------------
-    # FURNITURE PURCHASE
-    # -----------------------------------
+    # ------------------------------------------------
+    # FURNITURE
+    # ------------------------------------------------
 
-    elif any(word in text for word in furniture_keywords):
+    elif any(word in text for word in [
+        "furniture", "table", "chair",
+        "desk", "cabinet", "cupboard", "sofa"
+    ]):
 
         return {
             "Category": "Furniture Purchase",
@@ -208,11 +589,13 @@ def generate_entry(text):
             "Amount": amount
         }
 
-    # -----------------------------------
-    # MACHINERY PURCHASE
-    # -----------------------------------
+    # ------------------------------------------------
+    # MACHINERY
+    # ------------------------------------------------
 
-    elif any(word in text for word in machinery_keywords):
+    elif any(word in text for word in [
+        "machinery", "machine", "equipment", "plant"
+    ]):
 
         return {
             "Category": "Machinery Purchase",
@@ -221,11 +604,13 @@ def generate_entry(text):
             "Amount": amount
         }
 
-    # -----------------------------------
-    # VEHICLE PURCHASE
-    # -----------------------------------
+    # ------------------------------------------------
+    # VEHICLE
+    # ------------------------------------------------
 
-    elif any(word in text for word in vehicle_keywords):
+    elif any(word in text for word in [
+        "vehicle", "car", "truck", "van"
+    ]):
 
         return {
             "Category": "Vehicle Purchase",
@@ -234,11 +619,13 @@ def generate_entry(text):
             "Amount": amount
         }
 
-    # -----------------------------------
-    # INVENTORY PURCHASE
-    # -----------------------------------
+    # ------------------------------------------------
+    # INVENTORY
+    # ------------------------------------------------
 
-    elif any(word in text for word in inventory_keywords):
+    elif any(word in text for word in [
+        "inventory", "stock", "goods", "raw material"
+    ]):
 
         return {
             "Category": "Inventory Purchase",
@@ -247,11 +634,11 @@ def generate_entry(text):
             "Amount": amount
         }
 
-    # -----------------------------------
-    # SALARY EXPENSE
-    # -----------------------------------
+    # ------------------------------------------------
+    # SALARY
+    # ------------------------------------------------
 
-    elif any(word in text for word in salary_keywords):
+    elif "salary" in text or "wages" in text:
 
         return {
             "Category": "Salary Expense",
@@ -260,11 +647,11 @@ def generate_entry(text):
             "Amount": amount
         }
 
-    # -----------------------------------
-    # RENT EXPENSE
-    # -----------------------------------
+    # ------------------------------------------------
+    # RENT
+    # ------------------------------------------------
 
-    elif any(word in text for word in rent_keywords):
+    elif "rent" in text:
 
         return {
             "Category": "Rent Expense",
@@ -273,11 +660,13 @@ def generate_entry(text):
             "Amount": amount
         }
 
-    # -----------------------------------
-    # UTILITY EXPENSE
-    # -----------------------------------
+    # ------------------------------------------------
+    # UTILITIES
+    # ------------------------------------------------
 
-    elif any(word in text for word in utility_keywords):
+    elif any(word in text for word in [
+        "electricity", "water", "internet", "telephone", "utility"
+    ]):
 
         return {
             "Category": "Utility Expense",
@@ -286,11 +675,13 @@ def generate_entry(text):
             "Amount": amount
         }
 
-    # -----------------------------------
+    # ------------------------------------------------
     # OFFICE EXPENSE
-    # -----------------------------------
+    # ------------------------------------------------
 
-    elif any(word in text for word in office_keywords):
+    elif any(word in text for word in [
+        "stationery", "office supplies", "paper", "printer"
+    ]):
 
         return {
             "Category": "Office Expense",
@@ -299,11 +690,11 @@ def generate_entry(text):
             "Amount": amount
         }
 
-    # -----------------------------------
+    # ------------------------------------------------
     # LOAN
-    # -----------------------------------
+    # ------------------------------------------------
 
-    elif any(word in text for word in loan_keywords):
+    elif "loan" in text:
 
         return {
             "Category": "Loan Transaction",
@@ -312,11 +703,11 @@ def generate_entry(text):
             "Amount": amount
         }
 
-    # -----------------------------------
+    # ------------------------------------------------
     # CAPITAL
-    # -----------------------------------
+    # ------------------------------------------------
 
-    elif any(word in text for word in capital_keywords):
+    elif "capital" in text:
 
         return {
             "Category": "Capital Introduced",
@@ -325,11 +716,11 @@ def generate_entry(text):
             "Amount": amount
         }
 
-    # -----------------------------------
+    # ------------------------------------------------
     # DRAWINGS
-    # -----------------------------------
+    # ------------------------------------------------
 
-    elif any(word in text for word in drawings_keywords):
+    elif "drawings" in text:
 
         return {
             "Category": "Drawings",
@@ -338,24 +729,11 @@ def generate_entry(text):
             "Amount": amount
         }
 
-    # -----------------------------------
-    # DEPRECIATION
-    # -----------------------------------
-
-    elif any(word in text for word in depreciation_keywords):
-
-        return {
-            "Category": "Depreciation Expense",
-            "Debit": "Depreciation Expense Account",
-            "Credit": "Accumulated Depreciation Account",
-            "Amount": amount
-        }
-
-    # -----------------------------------
+    # ------------------------------------------------
     # INTEREST
-    # -----------------------------------
+    # ------------------------------------------------
 
-    elif any(word in text for word in interest_keywords):
+    elif "interest" in text:
 
         return {
             "Category": "Interest Expense",
@@ -364,11 +742,11 @@ def generate_entry(text):
             "Amount": amount
         }
 
-    # -----------------------------------
+    # ------------------------------------------------
     # GST
-    # -----------------------------------
+    # ------------------------------------------------
 
-    elif any(word in text for word in gst_keywords):
+    elif "gst" in text or "vat" in text or "tax" in text:
 
         return {
             "Category": "GST Transaction",
@@ -377,9 +755,9 @@ def generate_entry(text):
             "Amount": amount
         }
 
-    # -----------------------------------
+    # ------------------------------------------------
     # DEFAULT
-    # -----------------------------------
+    # ------------------------------------------------
 
     else:
 
@@ -391,9 +769,13 @@ def generate_entry(text):
         }
 
 
-# -----------------------------------
+# ------------------------------------------------
+# EXTRA FEATURES ADDED
+# ------------------------------------------------
+
+# ------------------------------------------------
 # BUTTON
-# -----------------------------------
+# ------------------------------------------------
 
 if st.button("Generate Entry"):
 
@@ -404,32 +786,65 @@ if st.button("Generate Entry"):
     col1, col2 = st.columns(2)
 
     with col1:
-
         st.info(f"Category: {result['Category']}")
-
         st.success(f"Debit: {result['Debit']}")
 
     with col2:
-
         st.warning(f"Credit: {result['Credit']}")
-
         st.error(f"Amount: {result['Amount']}")
 
-    # -----------------------------------
+    # ------------------------------------------------
+    # JOURNAL ENTRY TABLE
+    # ------------------------------------------------
+
+    st.subheader("Journal Entry Format")
+
+    journal_df = pd.DataFrame({
+        "Particulars": [
+            result["Debit"],
+            result["Credit"]
+        ],
+        "Debit": [
+            result["Amount"],
+            ""
+        ],
+        "Credit": [
+            "",
+            result["Amount"]
+        ]
+    })
+
+    st.table(journal_df)
+
+    # ------------------------------------------------
     # SAVE TO EXCEL
-    # -----------------------------------
+    # ------------------------------------------------
 
     data = pd.DataFrame({
 
-        "Transaction": [transaction],
+        "Date": [
+            datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        ],
 
-        "Category": [result["Category"]],
+        "Transaction": [
+            transaction
+        ],
 
-        "Debit": [result["Debit"]],
+        "Category": [
+            result["Category"]
+        ],
 
-        "Credit": [result["Credit"]],
+        "Debit": [
+            result["Debit"]
+        ],
 
-        "Amount": [result["Amount"]]
+        "Credit": [
+            result["Credit"]
+        ],
+
+        "Amount": [
+            result["Amount"]
+        ]
     })
 
     file = "transactions.xlsx"
@@ -438,24 +853,119 @@ if st.button("Generate Entry"):
 
         old = pd.read_excel(file)
 
-        updated = pd.concat([old, data], ignore_index=True)
+        updated = pd.concat(
+            [old, data],
+            ignore_index=True
+        )
 
-        updated.to_excel(file, index=False)
+        updated.to_excel(
+            file,
+            index=False
+        )
 
     else:
 
-        data.to_excel(file, index=False)
+        data.to_excel(
+            file,
+            index=False
+        )
 
     st.success("Transaction Saved Successfully")
 
-    # -----------------------------------
+    # ------------------------------------------------
     # DASHBOARD
-    # -----------------------------------
+    # ------------------------------------------------
 
     st.subheader("Transaction Dashboard")
 
     df = pd.read_excel(file)
 
-    st.dataframe(df, use_container_width=True)
+    st.dataframe(
+        df,
+        use_container_width=True
+    )
 
-    st.metric("Total Transactions", len(df))
+    # ------------------------------------------------
+    # METRICS
+    # ------------------------------------------------
+
+    st.subheader("Dashboard Metrics")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+
+        st.metric(
+            "Total Transactions",
+            len(df)
+        )    
+        
+    with col2:
+        inflow_categories = [
+            "Sales Revenue",
+            "Compound Sales Transaction",
+            "Business Income",
+            "Consulting Income",
+            "Commission Income",
+            "Capital Introduced",
+            "Loan Transaction"
+        ]
+
+        df["Amount"] = pd.to_numeric(
+            df["Amount"],
+            errors="coerce"
+        )
+
+        inflow = df[
+            df["Category"].isin(inflow_categories)
+        ]["Amount"].sum()
+
+        outflow = df[
+            ~df["Category"].isin(inflow_categories)
+        ]["Amount"].sum()
+
+        net_balance = inflow - outflow
+
+        st.metric(
+            "Net Balance",
+            net_balance
+        )
+
+    # ------------------------------------------------
+    # CATEGORY ANALYSIS
+    # ------------------------------------------------
+
+    st.subheader("Transaction Category Analysis")
+
+    category_count = df["Category"].value_counts()
+
+    st.bar_chart(category_count)
+
+    # ------------------------------------------------
+    # DOWNLOAD EXCEL FILE
+    # ------------------------------------------------
+
+    st.subheader("Download Records")
+
+    with open(file, "rb") as f:
+
+        st.download_button(
+
+            label="Download Excel File",
+
+            data=f,
+
+            file_name="transactions.xlsx",
+
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+
+    # ------------------------------------------------
+    # FOOTER
+    # ------------------------------------------------
+
+    st.markdown("---")
+
+    st.caption(
+        "AI Accounting System | Automated Journal Entry Generator| Developed by SUHAS"
+    )
