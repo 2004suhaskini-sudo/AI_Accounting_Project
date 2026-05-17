@@ -918,14 +918,15 @@ if st.button("Generate Entry"):
 
             color = "red"
 
-        return [
-            "",
-            "",
-            "",
-            "",
-            "",
+        styles = [""] * len(row)
+
+        amount_index = row.index.get_loc("Amount")
+
+        styles[amount_index] = (
             f"color: {color}; font-weight: bold"
-        ]
+        )
+
+        return styles
 
 
     styled_df = df.style.apply(
