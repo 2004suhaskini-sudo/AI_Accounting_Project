@@ -16,6 +16,7 @@ st.set_page_config(
 st.title("AI-Based Financial Transaction Analysis & Automated Journal Entry System")
 
 transaction = st.text_input("Enter Accounting Transaction")
+user_name = st.text_input("Enter Your Name")
 
 
 # ------------------------------------------------
@@ -24,13 +25,12 @@ transaction = st.text_input("Enter Accounting Transaction")
 
 def extract_amount(text):
 
-    numbers = re.findall(r'\d+(?:\.\d+)?', text)
+    numbers = re.findall(r'\d[\d,]*(?:\.\d+)?', text)
 
     if numbers:
-        return int(float(numbers[0]))
+        return int(float(numbers[0].replace(",", "")))
 
     return 0
-
 
 # ------------------------------------------------
 # AI ACCOUNTING ENGINE
@@ -47,15 +47,23 @@ def generate_entry(text):
     # ------------------------------------------------
 
     if "credit" in text:
-        payment_account = "Creditor Account"
+
+        if "sale" in text or "sales" in text or "sold" in text:
+            payment_account = "Debtor Account"
+
+        else:
+            payment_account = "Creditor Account"
 
     elif "bank" in text:
+
         payment_account = "Bank Account"
 
     elif "cash" in text:
-        payment_account = "Cash/Bank Account"
+
+        payment_account = "Cash Account"
 
     else:
+
         payment_account = "Cash/Bank Account"
 
     # ------------------------------------------------
@@ -136,11 +144,16 @@ def generate_entry(text):
     # PURCHASE RETURNS
     # ------------------------------------------------
 
-    elif "purchase return" in text or "returned goods to supplier" in text:
+    elif any(word in text for word in [
+        "purchase return",
+        "returned goods to supplier",
+        "goods returned to supplier",
+        "returned purchased goods"
+    ]):
 
         return {
             "Category": "Purchase Return",
-            "Debit": "Creditor Account",
+            "Debit": "Supplier Account",
             "Credit": "Purchase Return Account",
             "Amount": amount
         }
@@ -149,15 +162,20 @@ def generate_entry(text):
     # SALES RETURNS
     # ------------------------------------------------
 
-    elif "sales return" in text or "goods returned by customer" in text:
+    elif any(word in text for word in [
+        "sales return",
+        "goods returned by customer",
+        "customer returned goods",
+        "goods returned by debtor"
+    ]):
 
         return {
             "Category": "Sales Return",
             "Debit": "Sales Return Account",
-            "Credit": "Debtor/Cash Account",
+            "Credit": "Customer Account",
             "Amount": amount
         }
-
+    
     # ------------------------------------------------
     # OUTSTANDING EXPENSES
     # ------------------------------------------------
@@ -271,35 +289,13 @@ def generate_entry(text):
         ("partly" in text or "partly cash" in text)
     ):
 
-        debit_account = "Cash/Bank Account + Debtor Account"
+        debit_account = [
+            "Cash/Bank Account",
+            "Debtor Account"
+        ]
 
         return {
             "Category": "Compound Sales Transaction",
-            "Debit": debit_account,
-            "Credit": "Sales Account",
-            "Amount": amount
-        }
-
-    # ------------------------------------------------
-    # NORMAL SALES
-    # ------------------------------------------------
-
-    elif "sale" in text or "sales" in text or "sold" in text:
-
-        if "credit" in text:
-            debit_account = "Debtor Account"
-
-        elif "cash" in text:
-            debit_account = "Cash Account"
-
-        elif "bank" in text:
-            debit_account = "Bank Account"
-
-        else:
-            debit_account = "Cash/Bank Account"
-
-        return {
-            "Category": "Sales Revenue",
             "Debit": debit_account,
             "Credit": "Sales Account",
             "Amount": amount
@@ -310,32 +306,58 @@ def generate_entry(text):
     # ------------------------------------------------
 
     elif (
-        ("purchase" in text or "purchases" in text)
+        (
+            "purchase" in text or
+            "purchases" in text or
+            "purchased" in text or
+            "bought" in text
+        )
         and
-        ("partly cash" in text or "balance on credit" in text)
+        (
+            "partly cash" in text or
+            "balance on credit" in text
+        )
     ):
 
+        # ------------------------------------------------
+        # IDENTIFY ASSET ACCOUNT
+        # ------------------------------------------------
+
         if any(word in text for word in [
-            "machinery", "machine", "equipment", "plant"
+            "machinery",
+            "machine",
+            "equipment",
+            "plant"
         ]):
 
             debit_account = "Machinery Account"
 
         elif any(word in text for word in [
-            "furniture", "table", "chair",
-            "desk", "cabinet", "cupboard", "sofa"
+            "furniture",
+            "table",
+            "chair",
+            "desk",
+            "cabinet",
+            "cupboard",
+            "sofa"
         ]):
 
             debit_account = "Furniture Account"
 
         elif any(word in text for word in [
-            "vehicle", "car", "truck", "van"
+            "vehicle",
+            "car",
+            "truck",
+            "van"
         ]):
 
             debit_account = "Vehicle Account"
 
         elif any(word in text for word in [
-            "inventory", "stock", "goods", "raw material"
+            "inventory",
+            "stock",
+            "goods",
+            "raw material"
         ]):
 
             debit_account = "Inventory Account"
@@ -344,24 +366,63 @@ def generate_entry(text):
 
             debit_account = "Relevant Asset/Purchase Account"
 
+        # ------------------------------------------------
+        # EXTRACT TOTAL & CASH AMOUNT
+        # ------------------------------------------------
+
+        numbers = re.findall(
+            r'\d[\d,]*(?:\.\d+)?',
+            text
+        )
+
+        numbers = [
+            int(num.replace(",", ""))
+            for num in numbers
+        ]
+
+        total_amount = (
+            numbers[0]
+            if len(numbers) > 0
+            else 0
+        )
+
+        cash_amount = (
+            numbers[1]
+            if len(numbers) > 1
+            else 0
+        )
+
+        credit_amount = (
+            total_amount - cash_amount
+        )
+
+        # ------------------------------------------------
+        # RETURN ENTRY
+        # ------------------------------------------------
+
         return {
+
             "Category": "Compound Purchase Transaction",
-            "Debit": debit_account,
-            "Credit": "Cash/Bank Account + Creditor Account",
-            "Amount": amount
-        }
-    
-    # ------------------------------------------------
-    # PURCHASES
-    # ------------------------------------------------
 
-    elif "purchase" in text or "purchases" in text:
+            "Debit": [
+                {
+                    "Account": debit_account,
+                    "Amount": total_amount
+                }
+            ],
 
-        return {
-            "Category": "Purchase Transaction",
-            "Debit": "Purchase Account",
-            "Credit": payment_account,
-            "Amount": amount
+            "Credit": [
+                {
+                    "Account": "Cash/Bank Account",
+                    "Amount": cash_amount
+                },
+                {
+                    "Account": "Creditor Account",
+                    "Amount": credit_amount
+                }
+            ],
+
+            "Amount": total_amount
         }
     
     # ------------------------------------------------
@@ -560,28 +621,125 @@ def generate_entry(text):
         }
 
     # ------------------------------------------------
+    # COMPOUND INCOME
+    # ------------------------------------------------
+
+    elif (
+        "consulting" in text
+        and "commission" in text
+        and "interest" in text
+    ):
+
+        numbers = re.findall(
+            r'\d[\d,]*(?:\.\d+)?',
+            text
+        )
+
+        numbers = [
+            int(num.replace(",", ""))
+            for num in numbers
+        ]
+
+        consulting_amount = numbers[0]
+
+        commission_amount = numbers[1]
+
+        interest_amount = numbers[2]
+
+        total_amount = (
+            consulting_amount +
+            commission_amount +
+            interest_amount
+        )
+
+        return {
+
+            "Category": "Compound Income Transaction",
+
+            "Debit": [
+                {
+                    "Account": payment_account,
+                    "Amount": total_amount
+                }
+            ],
+
+            "Credit": [
+                {
+                    "Account": "Consulting Income Account",
+                    "Amount": consulting_amount
+                },
+                {
+                    "Account": "Commission Income Account",
+                    "Amount": commission_amount
+                },
+                {
+                    "Account": "Interest Income Account",
+                    "Amount": interest_amount
+                }
+            ],
+
+            "Amount": total_amount
+        }
+    
+    # ------------------------------------------------
     # CONSULTING / COMMISSION / SERVICE INCOME
     # ------------------------------------------------
 
     elif "consulting" in text:
 
-        return {
-            "Category": "Consulting Income",
-            "Debit": payment_account,
-            "Credit": "Consulting Income Account",
-            "Amount": amount
-        }
+        if any(word in text for word in [
+            "received",
+            "receive",
+            "got",
+            "earned",
+            "income",
+            "received through"
+        ]):
+
+            return {
+                "Category": "Consulting Income",
+                "Debit": payment_account,
+                "Credit": "Consulting Income Account",
+                "Amount": amount
+            }
+
+        else:
+
+            return {
+                "Category": "Consulting Expense",
+                "Debit": "Consulting Expense Account",
+                "Credit": payment_account,
+                "Amount": amount
+            }
 
     elif "commission" in text:
 
-        return {
-            "Category": "Commission Income",
-            "Debit": payment_account,
-            "Credit": "Commission Income Account",
-            "Amount": amount
-        }
+        if any(word in text for word in [
+            "received",
+            "receive",
+            "got",
+            "earned",
+            "income",
+            "received through"
+        ]):
 
-    elif "income" in text or "revenue" in text or "received" in text:
+            return {
+                "Category": "Commission Income",
+                "Debit": payment_account,
+                "Credit": "Commission Income Account",
+                "Amount": amount
+            }
+
+        else:
+
+            return {
+                "Category": "Commission Expense",
+                "Debit": "Commission Expense Account",
+                "Credit": payment_account,
+                "Amount": amount
+            }
+
+    elif "income" in text or "revenue" in text:
 
         return {
             "Category": "Business Income",
@@ -589,7 +747,7 @@ def generate_entry(text):
             "Credit": "Income Account",
             "Amount": amount
         }
-
+    
     # ------------------------------------------------
     # FURNITURE
     # ------------------------------------------------
@@ -599,12 +757,23 @@ def generate_entry(text):
         "desk", "cabinet", "cupboard", "sofa"
     ]):
 
-        return {
-            "Category": "Furniture Purchase",
-            "Debit": "Furniture Account",
-            "Credit": payment_account,
-            "Amount": amount
-        }
+        if "sold" in text or "sale" in text:
+
+            return {
+                "Category": "Furniture Sale",
+                "Debit": payment_account,
+                "Credit": "Furniture Account",
+                "Amount": amount
+            }
+
+        else:
+
+            return {
+                "Category": "Furniture Purchase",
+                "Debit": "Furniture Account",
+                "Credit": payment_account,
+                "Amount": amount
+            }
 
     # ------------------------------------------------
     # MACHINERY
@@ -614,12 +783,23 @@ def generate_entry(text):
         "machinery", "machine", "equipment", "plant"
     ]):
 
-        return {
-            "Category": "Machinery Purchase",
-            "Debit": "Machinery Account",
-            "Credit": payment_account,
-            "Amount": amount
-        }
+        if "sold" in text or "sale" in text:
+
+            return {
+                "Category": "Machinery Sale",
+                "Debit": payment_account,
+                "Credit": "Machinery Account",
+                "Amount": amount
+            }
+
+        else:
+
+            return {
+                "Category": "Machinery Purchase",
+                "Debit": "Machinery Account",
+                "Credit": payment_account,
+                "Amount": amount
+            }
 
     # ------------------------------------------------
     # VEHICLE
@@ -629,12 +809,23 @@ def generate_entry(text):
         "vehicle", "car", "truck", "van"
     ]):
 
-        return {
-            "Category": "Vehicle Purchase",
-            "Debit": "Vehicle Account",
-            "Credit": payment_account,
-            "Amount": amount
-        }
+        if "sold" in text or "sale" in text:
+
+            return {
+                "Category": "Vehicle Sale",
+                "Debit": payment_account,
+                "Credit": "Vehicle Account",
+                "Amount": amount
+            }
+
+        else:
+
+            return {
+                "Category": "Vehicle Purchase",
+                "Debit": "Vehicle Account",
+                "Credit": payment_account,
+                "Amount": amount
+            }
 
     # ------------------------------------------------
     # INVENTORY
@@ -644,38 +835,169 @@ def generate_entry(text):
         "inventory", "stock", "goods", "raw material"
     ]):
 
+        if (
+            "purchase" in text or
+            "purchased" in text or
+            "bought" in text
+        ):
+
+            return {
+                "Category": "Inventory Purchase",
+                "Debit": "Inventory Account",
+                "Credit": payment_account,
+                "Amount": amount
+            }
+
+        elif (
+            "sale" in text or
+            "sales" in text or
+            "sold" in text
+        ):
+
+            return {
+                "Category": "Sales Revenue",
+                "Debit": payment_account,
+                "Credit": "Sales Account",
+                "Amount": amount
+            }
+        
+    # ------------------------------------------------
+    # PURCHASES
+    # ------------------------------------------------
+
+    elif any(word in text for word in [
+            "purchase",
+            "purchases",
+            "purchased",
+            "bought"
+    ]):
+
         return {
-            "Category": "Inventory Purchase",
-            "Debit": "Inventory Account",
+            "Category": "Purchase Transaction",
+            "Debit": "Purchase Account",
             "Credit": payment_account,
             "Amount": amount
         }
+    
+    # ------------------------------------------------
+    # COMPOUND EXPENSES
+    # ------------------------------------------------
 
+    elif (
+        "salary" in text
+        and ("electricity" in text or "utility" in text)
+        and "rent" in text
+    ):
+
+        numbers = re.findall(
+            r'\d[\d,]*(?:\.\d+)?',
+            text
+        )
+
+        numbers = [
+            int(num.replace(",", ""))
+            for num in numbers
+        ]
+
+        salary_amount = numbers[0]
+
+        utility_amount = numbers[1]
+
+        rent_amount = numbers[2]
+
+        total_amount = (
+            salary_amount +
+            utility_amount +
+            rent_amount
+        )
+
+        return {
+
+            "Category": "Compound Expense Transaction",
+
+            "Debit": [
+                {
+                    "Account": "Salary Expense Account",
+                    "Amount": salary_amount
+                },
+                {
+                    "Account": "Utility Expense Account",
+                    "Amount": utility_amount
+                },
+                {
+                    "Account": "Rent Expense Account",
+                    "Amount": rent_amount
+                }
+            ],
+
+            "Credit": [
+                {
+                    "Account": payment_account,
+                    "Amount": total_amount
+                }
+            ],
+
+            "Amount": total_amount
+        }
+    
     # ------------------------------------------------
     # SALARY
     # ------------------------------------------------
 
     elif "salary" in text or "wages" in text:
 
-        return {
-            "Category": "Salary Expense",
-            "Debit": "Salary Expense Account",
-            "Credit": payment_account,
-            "Amount": amount
-        }
+        if any(word in text for word in [
+            "received",
+            "receive",
+            "received from",
+            "got"
+        ]):
 
+            return {
+                "Category": "Salary Income",
+                "Debit": payment_account,
+                "Credit": "Salary Income Account",
+                "Amount": amount
+            }
+
+        else:
+
+            return {
+                "Category": "Salary Expense",
+                "Debit": "Salary Expense Account",
+                "Credit": payment_account,
+                "Amount": amount
+            }
+        
     # ------------------------------------------------
     # RENT
     # ------------------------------------------------
 
     elif "rent" in text:
 
-        return {
-            "Category": "Rent Expense",
-            "Debit": "Rent Expense Account",
-            "Credit": payment_account,
-            "Amount": amount
-        }
+        if any(word in text for word in [
+            "received",
+            "receive",
+            "got",
+            "earned",
+            "income"
+        ]):
+
+            return {
+                "Category": "Rent Income",
+                "Debit": payment_account,
+                "Credit": "Rent Income Account",
+                "Amount": amount
+            }
+
+        else:
+
+            return {
+                "Category": "Rent Expense",
+                "Debit": "Rent Expense Account",
+                "Credit": payment_account,
+                "Amount": amount
+            }
 
     # ------------------------------------------------
     # UTILITIES
@@ -708,36 +1030,46 @@ def generate_entry(text):
         }
 
     # ------------------------------------------------
-    # LOAN
-    # ------------------------------------------------
-
-    elif "loan" in text:
-
-        return {
-            "Category": "Loan Transaction",
-            "Debit": "Bank Account",
-            "Credit": "Loan Account",
-            "Amount": amount
-        }
-
-    # ------------------------------------------------
     # CAPITAL
     # ------------------------------------------------
 
     elif "capital" in text:
 
-        return {
-            "Category": "Capital Introduced",
-            "Debit": payment_account,
-            "Credit": "Capital Account",
-            "Amount": amount
-        }
+        if any(word in text for word in [
+            "withdraw",
+            "withdrawn",
+            "returned",
+            "paid back"
+        ]):
+
+            return {
+                "Category": "Drawings",
+                "Debit": "Drawings Account",
+                "Credit": payment_account,
+                "Amount": amount
+            }
+
+        else:
+
+            return {
+                "Category": "Capital Introduced",
+                "Debit": payment_account,
+                "Credit": "Capital Account",
+                "Amount": amount
+            }
 
     # ------------------------------------------------
     # DRAWINGS
     # ------------------------------------------------
 
-    elif "drawings" in text:
+    elif any(word in text for word in [
+        "drawings",
+        "withdrew",
+        "withdrawn for personal use",
+        "personal use",
+        "owner withdrew",
+        "proprietor withdrew"
+    ]):
 
         return {
             "Category": "Drawings",
@@ -745,33 +1077,91 @@ def generate_entry(text):
             "Credit": payment_account,
             "Amount": amount
         }
-
+    
     # ------------------------------------------------
     # INTEREST
     # ------------------------------------------------
 
     elif "interest" in text:
 
-        return {
-            "Category": "Interest Expense",
-            "Debit": "Interest Expense Account",
-            "Credit": payment_account,
-            "Amount": amount
-        }
+        if any(word in text for word in [
+            "received",
+            "receive",
+            "got",
+            "earned",
+            "income"
+        ]):
+
+            return {
+                "Category": "Interest Income",
+                "Debit": payment_account,
+                "Credit": "Interest Income Account",
+                "Amount": amount
+            }
+
+        else:
+
+            return {
+                "Category": "Interest Expense",
+                "Debit": "Interest Expense Account",
+                "Credit": payment_account,
+                "Amount": amount
+            }
 
     # ------------------------------------------------
-    # GST
+    # GST / TAX
     # ------------------------------------------------
 
     elif "gst" in text or "vat" in text or "tax" in text:
 
+        if any(word in text for word in [
+            "received",
+            "refund",
+            "input gst",
+            "input vat"
+        ]):
+
+            return {
+                "Category": "GST Receivable",
+                "Debit": "GST Receivable Account",
+                "Credit": payment_account,
+                "Amount": amount
+            }
+
+        else:
+
+            return {
+                "Category": "GST Payable",
+                "Debit": "Tax Expense Account",
+                "Credit": "GST Payable Account",
+                "Amount": amount
+            }
+
+    # ------------------------------------------------
+    # NORMAL SALES
+    # ------------------------------------------------
+
+    elif "sale" in text or "sales" in text or "sold" in text:
+
+        if "credit" in text:
+            debit_account = "Debtor Account"
+
+        elif "cash" in text:
+            debit_account = "Cash Account"
+
+        elif "bank" in text:
+            debit_account = "Bank Account"
+
+        else:
+            debit_account = "Cash/Bank Account"
+
         return {
-            "Category": "GST Transaction",
-            "Debit": "Relevant GST Account",
-            "Credit": payment_account,
+            "Category": "Sales Revenue",
+            "Debit": debit_account,
+            "Credit": "Sales Account",
             "Amount": amount
         }
-
+    
     # ------------------------------------------------
     # DEFAULT
     # ------------------------------------------------
@@ -802,12 +1192,43 @@ if st.button("Generate Entry"):
 
     col1, col2 = st.columns(2)
 
+    debit_display = result["Debit"]
+    credit_display = result["Credit"]
+
+    if isinstance(debit_display, list):
+
+        debit_display = ", ".join(
+            [
+                f"{acc['Account']} ({acc['Amount']})"
+                if isinstance(acc, dict)
+                else str(acc)
+
+                for acc in debit_display
+            ]
+        )
+
+    if isinstance(credit_display, list):
+
+        credit_display = ", ".join(
+            [
+                f"{acc['Account']} ({acc['Amount']})"
+                if isinstance(acc, dict)
+                else str(acc)
+
+                for acc in credit_display
+            ]
+        )
+
     with col1:
+
         st.info(f"Category: {result['Category']}")
-        st.success(f"Debit: {result['Debit']}")
+
+        st.success(f"Debit: {debit_display}")
 
     with col2:
-        st.warning(f"Credit: {result['Credit']}")
+
+        st.warning(f"Credit: {credit_display}")
+
         st.error(f"Amount: {result['Amount']}")
 
     # ------------------------------------------------
@@ -816,22 +1237,79 @@ if st.button("Generate Entry"):
 
     st.subheader("Journal Entry Format")
 
+    debit_accounts = result["Debit"]
+    credit_accounts = result["Credit"]
+
+    if not isinstance(debit_accounts, list):
+        debit_accounts = [debit_accounts]
+
+    if not isinstance(credit_accounts, list):
+        credit_accounts = [credit_accounts]
+
+    particulars = []
+    debit_column = []
+    credit_column = []
+
+    # ------------------------------------------------
+    # DEBIT ENTRIES
+    # ------------------------------------------------
+
+    for acc in debit_accounts:
+
+        if isinstance(acc, dict):
+
+            particulars.append(acc["Account"])
+
+            debit_column.append(acc["Amount"])
+
+            credit_column.append("")
+
+        else:
+
+            particulars.append(acc)
+
+            debit_column.append(result["Amount"])
+
+            credit_column.append("")
+
+    # ------------------------------------------------
+    # CREDIT ENTRIES
+    # ------------------------------------------------
+
+    for acc in credit_accounts:
+
+        if isinstance(acc, dict):
+
+            particulars.append(acc["Account"])
+
+            debit_column.append("")
+
+            credit_column.append(acc["Amount"])
+
+        else:
+
+            particulars.append(acc)
+
+            debit_column.append("")
+
+            credit_column.append(result["Amount"])
+
+    # ------------------------------------------------
+    # CREATE DATAFRAME
+    # ------------------------------------------------
+
     journal_df = pd.DataFrame({
-        "Particulars": [
-            result["Debit"],
-            result["Credit"]
-        ],
-        "Debit": [
-            result["Amount"],
-            ""
-        ],
-        "Credit": [
-            "",
-            result["Amount"]
-        ]
+
+        "Particulars": particulars,
+        "Debit": debit_column,
+        "Credit": credit_column
+
     })
 
-    st.table(journal_df)
+    st.dataframe(
+        journal_df,
+        use_container_width=True
+    )
 
     # ------------------------------------------------
     # SAVE TO EXCEL
@@ -852,19 +1330,58 @@ if st.button("Generate Entry"):
         ],
 
         "Debit": [
-            result["Debit"]
+
+            ", ".join(
+
+                [
+                    acc["Account"]
+                    if isinstance(acc, dict)
+                    else str(acc)
+
+                    for acc in result["Debit"]
+                ]
+
+            )
+
+            if isinstance(result["Debit"], list)
+
+            else result["Debit"]
+
         ],
 
         "Credit": [
-            result["Credit"]
+
+            ", ".join(
+
+                [
+                    acc["Account"]
+                    if isinstance(acc, dict)
+                    else str(acc)
+
+                    for acc in result["Credit"]
+                ]
+
+            )
+
+            if isinstance(result["Credit"], list)
+
+            else result["Credit"]
+
         ],
 
         "Amount": [
             result["Amount"]
         ]
+
     })
 
-    file = "transactions.xlsx"
+    # ------------------------------------------------
+    # UNIQUE FILE FOR EACH USER
+    # ------------------------------------------------
+
+    safe_user = user_name.strip().replace(" ", "_")
+
+    file = f"transactions_{safe_user}.xlsx"
 
     if os.path.exists(file):
 
@@ -889,7 +1406,6 @@ if st.button("Generate Entry"):
 
     st.success("Transaction Saved Successfully")
 
-
     # ------------------------------------------------
     # DASHBOARD
     # ------------------------------------------------
@@ -900,17 +1416,24 @@ if st.button("Generate Entry"):
 
     def color_amount(row):
 
-        inflow_categories = [
-            "Sales Revenue",
-            "Compound Sales Transaction",
-            "Business Income",
-            "Consulting Income",
-            "Commission Income",
-            "Capital Introduced",
-            "Loan Transaction"
+        inflow_keywords = [
+            "income",
+            "sales revenue",
+            "compound sales transaction",
+            "capital introduced",
+            "capital contribution",
+            "commission",
+            "consulting",
+            "received",
+            "profit",
+            "discount received",
+            "purchase return",
+            "gst receivable"
         ]
 
-        if row["Category"] in inflow_categories:
+        category = str(row["Category"]).lower()
+
+        if any(word in category for word in inflow_keywords):
 
             color = "lightgreen"
 
@@ -928,21 +1451,14 @@ if st.button("Generate Entry"):
 
         return styles
 
-
     styled_df = df.style.apply(
-
         color_amount,
-
         axis=1
-
     )
 
     st.dataframe(
-
         styled_df,
-
         use_container_width=True
-
     )
 
     # ------------------------------------------------
@@ -958,17 +1474,23 @@ if st.button("Generate Entry"):
         st.metric(
             "Total Transactions",
             len(df)
-        )    
-        
+        )
+
     with col2:
-        inflow_categories = [
-            "Sales Revenue",
-            "Compound Sales Transaction",
-            "Business Income",
-            "Consulting Income",
-            "Commission Income",
-            "Capital Introduced",
-            "Loan Transaction"
+
+        inflow_keywords = [
+            "income",
+            "sales revenue",
+            "compound sales transaction",
+            "capital introduced",
+            "capital contribution",
+            "commission",
+            "consulting",
+            "received",
+            "profit",
+            "discount received",
+            "purchase return",
+            "gst receivable"
         ]
 
         df["Amount"] = pd.to_numeric(
@@ -977,11 +1499,21 @@ if st.button("Generate Entry"):
         )
 
         inflow = df[
-            df["Category"].isin(inflow_categories)
+            df["Category"].str.lower().apply(
+                lambda x: any(
+                    word in x
+                    for word in inflow_keywords
+                )
+            )
         ]["Amount"].sum()
 
         outflow = df[
-            ~df["Category"].isin(inflow_categories)
+            ~df["Category"].str.lower().apply(
+                lambda x: any(
+                    word in x
+                    for word in inflow_keywords
+                )
+            )
         ]["Amount"].sum()
 
         net_balance = inflow - outflow
@@ -995,11 +1527,73 @@ if st.button("Generate Entry"):
     # CATEGORY ANALYSIS
     # ------------------------------------------------
 
-    st.subheader("Transaction Category Analysis")
+    st.subheader("Advanced Transaction Analysis")
 
-    category_count = df["Category"].value_counts()
+    # Category-wise Total Amount
 
-    st.bar_chart(category_count)
+    category_amount = df.groupby(
+        "Category"
+    )["Amount"].sum()
+
+    st.write("Category-wise Transaction Amount")
+
+    st.bar_chart(category_amount)
+
+    # Top 5 Categories
+
+    st.write("Top 5 Transaction Categories")
+
+    top_categories = category_amount.sort_values(
+        ascending=False
+    ).head(5)
+
+    st.bar_chart(top_categories)
+
+    # Income vs Expense
+
+    inflow_keywords = [
+        "income",
+        "sales revenue",
+        "compound sales transaction",
+        "capital introduced",
+        "capital contribution",
+        "commission",
+        "consulting",
+        "received",
+        "profit",
+        "discount received",
+        "purchase return",
+        "gst receivable"
+    ]
+
+    income_total = df[
+        df["Category"].str.lower().apply(
+            lambda x: any(
+                word in x
+                for word in inflow_keywords
+            )
+        )
+    ]["Amount"].sum()
+
+    expense_total = df[
+        ~df["Category"].str.lower().apply(
+            lambda x: any(
+                word in x
+                for word in inflow_keywords
+            )
+        )
+    ]["Amount"].sum()
+
+    comparison_df = pd.DataFrame({
+        "Type": ["Income", "Expense"],
+        "Amount": [income_total, expense_total]
+    })
+
+    st.write("Income vs Expense Analysis")
+
+    st.bar_chart(
+        comparison_df.set_index("Type")
+    )
 
     # ------------------------------------------------
     # DOWNLOAD EXCEL FILE
